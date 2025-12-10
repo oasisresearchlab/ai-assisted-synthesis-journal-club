@@ -1,0 +1,67 @@
+/* Claims & Evidence Extractor Plugin Styles */
+
+.extraction-modal .settings-container {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.extraction-modal .setting-item {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  border-top: 0 !important;
+  padding: 1em 0 !important;
+}
+
+.extraction-modal .setting-item::before {
+  display: none !important;
+}
+
+.modal-button-container {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+/* Node and Relation Type Selection */
+.checkbox-container {
+  display: block !important;
+  visibility: visible !important;
+  margin-bottom: 1em;
+  min-height: 50px;
+}
+
+.checkbox-container .setting-item {
+  padding: 0.75em 0 !important;
+  border-top: 1px solid var(--background-modifier-border) !important;
+}
+
+.checkbox-container .setting-item:first-child {
+  border-top: none !important;
+}
+
+.node-type-color,
+.relation-type-color {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: baseline;
+}
+
+/* Section headings */
+.extraction-modal h3 {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  font-size: 1em;
+  font-weight: 600;
+}
+
+.extraction-modal p.setting-item-description {
+  margin-bottom: 0.75em;
+  color: var(--text-muted);
+  font-size: 0.9em;
+}

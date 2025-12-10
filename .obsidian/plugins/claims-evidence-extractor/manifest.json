@@ -1,0 +1,10 @@
+{
+  "id": "claims-evidence-extractor",
+  "name": "Claims & Evidence Extractor",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "Extract claims and evidence from research papers using AI",
+  "author": "Research Lab",
+  "authorUrl": "",
+  "isDesktopOnly": true
+}
