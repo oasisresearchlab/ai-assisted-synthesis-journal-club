@@ -210,3 +210,209 @@ The extraction script will:
    - Use Claude to synthesize candidate claims
    - Map claims to supporting evidence block references
    - Generate `claims/central-claims.md` with linked claims (using `@` prefix in links)
+
+---
+
+# Node Verification with Zotero PDFs
+
+## Overview
+
+On-demand verification system that enriches extracted discourse nodes (Evidence, Claims, etc.) with relevant snippets from source PDFs in Zotero. Uses LLM semantic search to find supporting passages and adds verification sections to evidence markdown files.
+
+## Requirements
+
+- **Zotero Access**: Local SQLite database with BetterBibTeX citation keys
+- **Citekey Mapping**: Citation keys stored in Extra field as "Citation Key: XXX"
+- **Timing**: On-demand CLI tool, not automatic during extraction
+- **Content**: Text quotes with page numbers, figures/tables (Phase 2)
+- **Matching**: LLM-based semantic search for relevant passages
+- **Presentation**: Verification sections added to evidence markdown files
+
+## Architecture
+
+### Pipeline Components
+
+```
+CLI Entry Point (verify_with_zotero.py)
+  ↓
+Zotero DB Module → Query SQLite, map citekey → PDF path
+  ↓
+PDF Extractor → Extract text chunks, figures, tables
+  ↓
+Semantic Search → LLM-based relevance scoring
+  ↓
+Markdown Updater → Insert verification sections
+  ↓
+Cache Manager → Cache extractions and LLM scores
+```
+
+### File Structure
+
+```
+scripts/
+├── verify_with_zotero.py           # CLI entry point
+└── zotero_verification/            # Package (6 modules)
+    ├── zotero_db.py                # SQLite queries
+    ├── pdf_extractor.py            # PyMuPDF text extraction
+    ├── semantic_search.py          # LLM chunk ranking
+    ├── markdown_updater.py         # Markdown manipulation
+    ├── cache_manager.py            # Caching layer
+    └── config.py                   # Configuration
+
+.cache/
+├── pdf_extractions/                # Cached PDF data
+└── llm_scores/                     # Cached LLM scores
+
+attachments/verification/           # Extracted images (Phase 2)
+└── @citekey/
+    ├── fig-1-p5.png
+    └── table-2-p12.png
+```
+
+## Usage
+
+```bash
+# Verify single node
+python scripts/verify_with_zotero.py @citekey --node evidence-000
+
+# Verify all Evidence nodes
+python scripts/verify_with_zotero.py @citekey --type Evidence
+
+# Verify entire paper
+python scripts/verify_with_zotero.py @citekey
+
+# Batch verify multiple papers
+python scripts/verify_with_zotero.py @paper1 @paper2 @paper3
+
+# Configuration options
+python scripts/verify_with_zotero.py @citekey \
+  --top-k 10 \
+  --dry-run \
+  --verbose
+```
+
+## Implementation Details
+
+### Zotero Integration
+- Searches BetterBibTeX citation keys in Extra field
+- Handles both "Citation Key: XXX" and standard citationKey field
+- Fuzzy matching with Levenshtein distance for typos
+- Maps citekey → itemID → PDF attachment path
+- Supports all Zotero libraries (personal and group)
+
+### PDF Extraction
+- **Library**: PyMuPDF (fitz) for speed and accuracy
+- **Chunking**: Paragraph-based, 500 word max, 50 word overlap
+- **Output**: TextChunk objects with content, page_num, chunk_id
+- **Figures/Tables**: Caption detection (Phase 2)
+
+### Semantic Search
+- **Approach**: Direct LLM scoring (Claude Sonnet 4.5)
+- **Strategy**:
+  1. Optional keyword pre-filter (50% reduction)
+  2. Batch chunks (20-30 per prompt)
+  3. Score each chunk 0-10 for relevance
+  4. Return top-k with reasoning
+- **Optimization**: Cache scores by (node_content, chunk_id) hash
+
+### Markdown Integration
+- Non-destructive updates to evidence files
+- Inserts verification section after node's What/How/Who metadata
+- Replaces existing verification sections on re-run
+- Preserves all other markdown structure
+
+**Format**:
+```markdown
+### Verification Snippets (evidence-000)
+
+**Text Quotes:**
+
+> "Quoted text from PDF..."
+>
+> *— Page 5*
+
+**Search Metadata:**
+- Verified: 2025-12-10
+- Chunks searched: 19
+- Snippets found: 5 text
+```
+
+### Caching
+- **PDF Extractions**: JSON files with text chunks, metadata, file hash
+- **LLM Scores**: JSON files with relevance scores and reasoning
+- **Invalidation**: PDF hash for extractions, 30 days for LLM scores
+- **Performance**: ~80% speedup on cached papers
+
+## Configuration
+
+**Environment Variables** (`.env`):
+```bash
+ANTHROPIC_API_KEY=sk-ant-...
+ZOTERO_DB_PATH=/Users/username/Zotero/zotero.sqlite
+ZOTERO_STORAGE_PATH=/Users/username/Zotero/storage
+```
+
+**Dependencies** (`requirements.txt`):
+```
+pymupdf>=1.23.0           # PDF extraction
+Pillow>=10.0.0            # Image manipulation
+tqdm>=4.65.0              # Progress bars
+python-Levenshtein>=0.20.0  # Fuzzy matching
+```
+
+## Implementation Status
+
+### Phase 1: Text-Only Verification ✅ Complete
+- ✅ Zotero SQLite database integration
+- ✅ BetterBibTeX citation key parsing
+- ✅ PDF text extraction with chunking
+- ✅ LLM semantic search
+- ✅ Markdown integration
+- ✅ File-based caching
+- ✅ CLI with batch processing
+- ✅ Error handling and fuzzy matching
+
+**Testing Results**:
+- Successfully verified `evidence/@kazemitabaarImprovingSteeringVerification2024.md`
+- Extracted 19 text chunks from PDF
+- Found 5 relevant snippets (scores 7.0-9.5)
+- Added verification section with quotes from pages 2, 3, 11, 12, 15
+
+### Phase 2: Figure/Table Extraction (Future)
+- Caption detection ("Figure N:", "Table N:")
+- Image region extraction
+- PNG rendering at 300 DPI
+- Embedding in verification sections
+
+### Phase 3: Obsidian UI Integration (Future)
+- Command palette integration
+- In-app verification triggers
+- Real-time status indicators
+- User-defined heuristics from annotations
+
+## Key Design Decisions
+
+- **LLM over embeddings**: Provides reasoning, simpler to implement (can add embeddings later)
+- **Paragraph chunking**: Preserves semantic units vs. rigid page-based
+- **File-based cache**: Simple, readable, no additional services
+- **PNG images**: Obsidian native, universal support
+- **Node-specific**: Precise verification vs. paper-level bulk
+- **Idempotent**: Re-running replaces, doesn't duplicate
+
+## Error Handling
+
+- **DB not found**: Clear message with path suggestions
+- **Citekey not found**: Fuzzy match suggestions with Levenshtein distance
+- **PDF missing**: Skip paper, continue with others
+- **No snippets found**: Add informative note to verification section
+- **LLM API error**: 3 retries with exponential backoff
+- **Markdown backup**: Automatic before modification
+
+## Success Criteria
+
+- ✅ CLI locates PDFs from BetterBibTeX citekeys
+- ✅ Text snippets are semantically relevant to nodes
+- ✅ Verification sections integrate cleanly into markdown
+- ✅ Cache reduces processing time significantly
+- ✅ Graceful handling of errors and missing data
+- 🚧 Figures/tables render in Obsidian (Phase 2)
