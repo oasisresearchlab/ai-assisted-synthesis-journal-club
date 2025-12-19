@@ -67,7 +67,7 @@ class ExtractionModal extends Modal {
     // CSV File Picker
     new Setting(settingsContainer)
       .setName('CSV File')
-      .setDesc('Select a CSV file containing papers (must have Title and Abstract columns)')
+      .setDesc('Select a CSV file containing papers (requires Title; uses Abstract, Abstract Note, or other content columns)')
       .addText(text => {
         text.setPlaceholder('Path to CSV file')
           .setValue(this.csvPath)
@@ -327,7 +327,8 @@ class ClaimsEvidenceExtractorPlugin extends Plugin {
     const scriptContent = `#!/usr/bin/env python3
 """
 Extract claims and evidence from papers CSV using Claude API.
-Works with Title and Abstract columns only.
+Requires Title column; uses Abstract, Abstract Note (Zotero), or falls back to
+content columns like Reasoning for.../Supporting... (Elicit).
 
 Usage: python3 extract-claims-evidence-from-abstracts.py <csv_path> <focal_question>
 """
@@ -625,13 +626,49 @@ def main():
 
     # Check for required columns (case-insensitive)
     columns_lower = [col.lower() for col in df.columns]
-    if 'title' not in columns_lower or 'abstract' not in columns_lower:
-        print("Error: CSV must contain 'Title' and 'Abstract' columns")
+
+    if 'title' not in columns_lower:
+        print("Error: CSV must contain a 'Title' column")
         print(f"Found columns: {', '.join(df.columns)}")
         sys.exit(1)
 
-    # Standardize column names
-    df.columns = [col.lower().capitalize() if col.lower() in ['title', 'abstract', 'authors', 'year', 'doi'] else col for col in df.columns]
+    # Find abstract column - check variants and fallbacks
+    abstract_col = None
+    abstract_variants = ['abstract', 'abstract note']  # Zotero uses "Abstract Note"
+
+    for variant in abstract_variants:
+        if variant in columns_lower:
+            abstract_col = df.columns[columns_lower.index(variant)]
+            break
+
+    if not abstract_col:
+        # Try fallback columns by prefix (Elicit uses "Reasoning for...", "Supporting...")
+        content_prefixes = ['reasoning for', 'supporting', 'summary', 'description', 'content', 'notes']
+        for col, col_lower in zip(df.columns, columns_lower):
+            for prefix in content_prefixes:
+                if col_lower.startswith(prefix):
+                    abstract_col = col
+                    print(f"Note: No 'Abstract' column found, using '{abstract_col}' as content source")
+                    break
+            if abstract_col:
+                break
+
+    if not abstract_col:
+        print("Warning: No abstract or content column found. Extraction will use title only.")
+        print(f"Found columns: {', '.join(df.columns)}")
+        df['Abstract'] = ''
+    else:
+        # Rename the found column to 'Abstract' for consistent access
+        df = df.rename(columns={abstract_col: 'Abstract'})
+
+    # Standardize other column names
+    columns_lower = [col.lower() for col in df.columns]
+    rename_map = {}
+    for target in ['title', 'authors', 'year', 'doi']:
+        if target in columns_lower and target.capitalize() not in df.columns:
+            original = df.columns[columns_lower.index(target)]
+            rename_map[original] = target.capitalize()
+    df = df.rename(columns=rename_map)
 
     # Process each paper
     all_evidence_data = []
