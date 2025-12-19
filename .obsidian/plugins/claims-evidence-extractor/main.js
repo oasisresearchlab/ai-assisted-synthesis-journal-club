@@ -121,7 +121,7 @@ class ExtractionModal extends Modal {
         cls: 'setting-item-description'
       });
 
-      const nodeTypesContainer = settingsContainer.createDiv({ cls: 'checkbox-container' });
+      const nodeTypesContainer = settingsContainer.createDiv({ cls: 'node-selection-container' });
 
       this.schema.nodeTypes.forEach(nodeType => {
         if (nodeType.name === 'Source') return; // Skip Source type
@@ -158,7 +158,7 @@ class ExtractionModal extends Modal {
         cls: 'setting-item-description'
       });
 
-      const relationTypesContainer = settingsContainer.createDiv({ cls: 'checkbox-container' });
+      const relationTypesContainer = settingsContainer.createDiv({ cls: 'node-selection-container' });
 
       this.schema.discourseRelations.forEach((discRel, idx) => {
         // Dereference IDs to build label

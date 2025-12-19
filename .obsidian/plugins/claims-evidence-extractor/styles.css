@@ -26,19 +26,19 @@
 }
 
 /* Node and Relation Type Selection */
-.checkbox-container {
+.node-selection-container {
   display: block !important;
   visibility: visible !important;
   margin-bottom: 1em;
   min-height: 50px;
 }
 
-.checkbox-container .setting-item {
+.node-selection-container .setting-item {
   padding: 0.75em 0 !important;
   border-top: 1px solid var(--background-modifier-border) !important;
 }
 
-.checkbox-container .setting-item:first-child {
+.node-selection-container .setting-item:first-child {
   border-top: none !important;
 }
 
