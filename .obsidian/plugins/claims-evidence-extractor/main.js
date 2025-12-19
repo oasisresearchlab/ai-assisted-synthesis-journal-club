@@ -345,24 +345,37 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def sanitize_author_year(authors, year):
-    """Create filename from first author's last name and year."""
+def generate_citekey(authors, title, year):
+    """
+    Generate citation key using BetterBibTeX-style formula: auth.lower+shorttitle(3,3)+year
+    Example: Greene et al "Better, Nicer, Clearer, Fairer: A Critical Assessment..." (2019)
+             -> greeneBetterNicerClearer2019
+    """
+    # Get author part (lowercase)
     if pd.isna(authors) or not authors:
-        return f"unknown-{year}"
-
-    # Extract first author's last name
-    first_author = authors.split(',')[0].strip()
-    # Get last name (assuming "First Last" or "Last, First" format)
-    if ',' in first_author:
-        last_name = first_author.split(',')[0].strip()
+        auth_part = "unknown"
     else:
-        parts = first_author.split()
-        last_name = parts[-1] if parts else "unknown"
+        first_author = authors.split(',')[0].strip()
+        if ',' in first_author:
+            last_name = first_author.split(',')[0].strip()
+        else:
+            parts = first_author.split()
+            last_name = parts[-1] if parts else "unknown"
+        auth_part = re.sub(r'[^a-zA-Z]', '', last_name).lower()
 
-    # Sanitize
-    last_name = re.sub(r'[^a-zA-Z0-9]', '', last_name).lower()
+    # Get shorttitle part (first 3 non-stopword words, CamelCased)
+    if pd.isna(title) or not title:
+        title_part = ""
+    else:
+        stopwords = {'a', 'an', 'the', 'of', 'and', 'or', 'for', 'to', 'in', 'on', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'shall', 'can', 'need', 'dare', 'ought', 'used', 'at', 'from', 'into', 'during', 'including', 'until', 'against', 'among', 'throughout', 'despite', 'towards', 'upon', 'concerning', 'but', 'if', 'while', 'although', 'though', 'because', 'since', 'unless', 'so', 'that', 'than', 'whether', 'as', 'what', 'which', 'who', 'whom', 'whose', 'when', 'where', 'why', 'how'}
+        words = re.findall(r'[a-zA-Z]+', title)
+        meaningful_words = [w for w in words if w.lower() not in stopwords][:3]
+        title_part = ''.join(w.capitalize() for w in meaningful_words)
 
-    return f"@{last_name}-{year}"
+    # Get year part
+    year_part = str(year) if year and not pd.isna(year) else ""
+
+    return f"@{auth_part}{title_part}{year_part}"
 
 
 def extract_evidence_from_paper(client, paper_data, research_question):
@@ -636,10 +649,10 @@ def main():
 
         print(f"  Extracted {len(evidence_items)} evidence items")
 
-        # Generate filename
+        # Generate filename using BetterBibTeX-style citekey
         authors = row.get('Authors', row.get('authors', ''))
         year = row.get('Year', row.get('year', 'unknown'))
-        filename = sanitize_author_year(authors, year)
+        filename = generate_citekey(authors, title, year)
 
         # Generate paper markdown
         generate_paper_markdown(row, evidence_items, filename, evidence_dir)
